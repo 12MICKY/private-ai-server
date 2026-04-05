@@ -1,108 +1,221 @@
-# ================================
-# 1. Update system
-# ================================
-sudo apt update && sudo apt upgrade -y
+# Self-Hosted AI Platform
 
-# ================================
-# 2. Install basic tools
-# ================================
-sudo apt install -y curl wget git python3 python3-venv python3-pip
+A private AI infrastructure built using local resources.  
+This project demonstrates how to run multiple large language models (LLMs) locally with a web interface and secure remote access.
 
-# ================================
-# 3. Install Ollama (AI Engine)
-# ================================
+---
+
+## Overview
+
+This system allows you to:
+
+- Run AI models locally without external APIs
+- Use a web interface similar to ChatGPT
+- Access your AI through a custom domain
+- Manage your own AI infrastructure
+
+---
+
+## Architecture
+
+```
+
+User (Browser)
+↓
+Cloudflare (Domain + Tunnel)
+↓
+Tunnel Server (cloudflared)
+↓
+AI Server (Ubuntu)
+↓
+Open WebUI (Port 8080)
+↓
+Ollama (LLM Runtime)
+↓
+Local Models
+
+````
+
+---
+
+## Tech Stack
+
+### Infrastructure
+- Proxmox VE
+- Ubuntu Server
+
+### AI Runtime
+- Ollama
+
+### Models
+- llama3
+- deepseek-coder
+- phi3
+- mistral
+
+### Interface
+- Open WebUI
+
+### Networking
+- Cloudflare Tunnel
+- Custom Domain
+
+---
+
+## Requirements
+
+Minimum:
+
+- CPU: 4 cores
+- RAM: 10–12 GB
+- Storage: 50 GB
+
+Recommended:
+
+- RAM: 16 GB or higher
+- GPU (optional)
+
+---
+
+## Installation
+
+### 1. Install Ollama
+
+```bash
 curl -fsSL https://ollama.com/install.sh | sh
+````
 
-# ================================
-# 4. Install AI Models
-# ================================
+---
+
+### 2. Install Models
+
+```bash
 ollama pull llama3
 ollama pull phi3
 ollama pull deepseek-coder
 ollama pull mistral
+```
 
-# ================================
-# 5. Setup Open WebUI (Web Interface)
-# ================================
-mkdir -p ~/openwebui && cd ~/openwebui
-python3 -m venv venv
-source venv/bin/activate
+---
 
-pip install -U pip
+### 3. Run AI
+
+```bash
+ollama run llama3
+```
+
+---
+
+### 4. Install Open WebUI
+
+```bash
 pip install open-webui
+open-webui serve --host 0.0.0.0 --port 8080
+```
 
-# ================================
-# 6. Create Open WebUI service
-# ================================
-sudo bash -c 'cat > /etc/systemd/system/openwebui.service <<EOF
-[Unit]
-Description=Open WebUI
-After=network.target
+Access:
 
-[Service]
-User='$USER'
-WorkingDirectory=/home/'$USER'/openwebui
-ExecStart=/home/'$USER'/openwebui/venv/bin/open-webui serve --host 0.0.0.0 --port 8080
-Restart=always
+```
+http://YOUR_SERVER_IP:8080
+```
 
-[Install]
-WantedBy=multi-user.target
-EOF'
+---
 
-sudo systemctl daemon-reload
-sudo systemctl enable openwebui
-sudo systemctl start openwebui
+### 5. Setup Cloudflare Tunnel
 
-# ================================
-# 7. Install Cloudflare Tunnel
-# ================================
-cd ~
+Install:
+
+```bash
 wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
 sudo dpkg -i cloudflared-linux-amd64.deb
+```
 
-# ================================
-# 8. Login Cloudflare (จะเปิด browser)
-# ================================
+Login:
+
+```bash
 cloudflared tunnel login
+```
 
-# ================================
-# 9. Create tunnel
-# ================================
+Create tunnel:
+
+```bash
 cloudflared tunnel create ai-server
+```
 
-# ================================
-# 10. Auto create config
-# ================================
-TUNNEL_ID=$(cloudflared tunnel list | grep ai-server | awk '{print $1}')
-TUNNEL_FILE=$(ls ~/.cloudflared/*.json | head -n 1)
+Route domain:
 
+```bash
+cloudflared tunnel route dns ai-server ai.yourdomain.com
+```
+
+Create config:
+
+```bash
 mkdir -p ~/.cloudflared
 
 cat > ~/.cloudflared/config.yml <<EOF
-tunnel: $TUNNEL_ID
-credentials-file: $TUNNEL_FILE
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /home/YOUR_USER/.cloudflared/YOUR_TUNNEL_ID.json
 
 ingress:
   - hostname: ai.yourdomain.com
-    service: http://localhost:8080
+    service: http://YOUR_SERVER_IP:8080
   - service: http_status:404
 EOF
+```
 
-# ================================
-# 11. Route DNS
-# ================================
-cloudflared tunnel route dns ai-server ai.yourdomain.com
+Run:
 
-# ================================
-# 12. Install tunnel service
-# ================================
-sudo cp ~/.cloudflared/config.yml /etc/cloudflared/config.yml
+```bash
+cloudflared tunnel run ai-server
+```
 
+Optional (run as service):
+
+```bash
 sudo cloudflared service install
-sudo systemctl daemon-reload
 sudo systemctl enable cloudflared
 sudo systemctl start cloudflared
+```
 
-# ================================
-# DONE
-# ================================
+---
+
+## Access
+
+Local:
+
+```
+http://YOUR_SERVER_IP:8080
+```
+
+Public:
+
+```
+https://ai.yourdomain.com
+```
+
+---
+
+## Notes
+
+* This setup uses CPU by default
+* Performance depends on hardware
+* Run one model at a time for best performance
+
+---
+
+## Future Improvements
+
+* GPU acceleration
+* Multi-user system
+* Model routing
+* Monitoring system
+* Containerized deployment
+
+---
+
+## Author
+
+Thiraphat
+
+```
